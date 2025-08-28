@@ -8,14 +8,14 @@
 
 from fpdf import FPDF
 from csv import reader
+import json
 import argparse
 # import tkinter as tk
 # from tkinter import filedialog
 import sys
 
 class InvoicePDFGenerator:
-   def __init__(self, out_pdf_path):
-      self.out_pdf_path = out_pdf_path
+   def __init__(self, provider_dict):
       self.pdf = FPDF(orientation="P", unit="in", format="Letter")
       self.left_edge = 0.7
       self.pdf.set_margin(self.left_edge)
@@ -29,9 +29,10 @@ class InvoicePDFGenerator:
       self.pdf.set_font('Helvetica', size=12)
       self.text_top = 0.7
       self.text_14_height = 0.2
-      self.pdf.text(self.left_edge, self.text_top,"Charlie Spencer")
-      self.pdf.text(self.left_edge, self.text_top + self.text_14_height,"83 Ash St")
-      self.pdf.text(self.left_edge, self.text_top + (self.text_14_height * 2),"W. Newbury, MA 01985")
+      self.pdf.text(self.left_edge, self.text_top, provider_dict["name"])
+      self.pdf.text(self.left_edge, self.text_top + self.text_14_height, provider_dict["address1"])
+      city_state_zip = f'{provider_dict["city"]}, {provider_dict["state"]} {provider_dict["postalCode"]}'
+      self.pdf.text(self.left_edge, self.text_top + (self.text_14_height * 2), city_state_zip)
 
 
    def add_customer_info(self, customer_info_dict={}):
@@ -52,16 +53,20 @@ class InvoicePDFGenerator:
          row = table.row(customer_info)
 
 
-   def finish(self):
-      self.pdf.output(self.out_pdf_path)
+   def finish(self, out_pdf_path):
+      self.pdf.output(out_pdf_path)
 
 
 if __name__ == "__main__":
    # default_auth_path = "email_credentials.json"
+   try:
+      provider_dict = json.load(open("provider.json"))
+   except Exception as e:
+      sys.exit(f"Could not open provider.json file: {e}")
 
-   this_invoice = InvoicePDFGenerator("invoice_blank.pdf")
+   this_invoice = InvoicePDFGenerator(provider_dict)
    this_invoice.add_customer_info()
-   this_invoice.finish()
+   this_invoice.finish("invoice_blank.pdf")
    sys.exit(0)
 
    argParser = argparse.ArgumentParser()
