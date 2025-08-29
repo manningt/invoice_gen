@@ -7,9 +7,10 @@
 # ///
 
 from fpdf import FPDF
-from csv import reader
+import csv
 import json
 import argparse
+from datetime import datetime
 # import tkinter as tk
 # from tkinter import filedialog
 import sys
@@ -35,13 +36,14 @@ class InvoicePDFGenerator:
       self.pdf.text(self.left_edge, self.text_top + (self.text_14_height * 2), city_state_zip)
 
 
-   def add_customer_info(self, customer_info_dict={}):
+   def add_customer_info(self, email=None, account=None, date=None, invoice_number=None, \
+         name=None, address1=None, city_st_zip=None):
       self.pdf.set_y(1.0)
       with self.pdf.table(col_widths=(35,9,11,8), width=5, align="Right", line_height=self.text_14_height, padding=0.04) as table:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Customer E-mail', 'Account', 'Date', 'Invoice'])
          self.pdf.set_font('Times')
-         customer_info = ['melinda.fields@cbrealty.com', '163', '12/12/2025', '1024']
+         customer_info = [email, account, date, invoice_number]
          row = table.row(customer_info)
 
       self.pdf.set_y(2.0)
@@ -49,8 +51,10 @@ class InvoicePDFGenerator:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Bill To:'])
          self.pdf.set_font('Times')
-         customer_info = "Charlie Spencer\n83 Ash St\nW. Newbury, MA 01985",
-         row = table.row(customer_info)
+         customer_info = f"{name}\n{address1}\n{city_st_zip}"
+         # row = table.row(customer_info) # this gives an error
+         row = table.row()
+         row.cell(customer_info)         
 
 
    def finish(self, out_pdf_path):
@@ -59,13 +63,27 @@ class InvoicePDFGenerator:
 
 if __name__ == "__main__":
    # default_auth_path = "email_credentials.json"
+   current_date = datetime.now()
+   billing_date = current_date.strftime("%m/%d/%Y")
+
    try:
       provider_dict = json.load(open("provider.json"))
    except Exception as e:
       sys.exit(f"Could not open provider.json file: {e}")
 
    this_invoice = InvoicePDFGenerator(provider_dict)
-   this_invoice.add_customer_info()
+
+   try:
+      customer_dict = csv.DictReader(open('2025-09-02-customer_list.csv'))
+   except Exception as e:
+      sys.exit(f"Could not open customer_list.csv: {e}")
+
+   for row in customer_dict:
+      # print(row)
+      this_invoice.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
+         invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"])
+      break
+   
    this_invoice.finish("invoice_blank.pdf")
    sys.exit(0)
 
