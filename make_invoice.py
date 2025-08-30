@@ -16,10 +16,12 @@ from datetime import datetime
 import sys
 
 class InvoicePDFGenerator:
-   def __init__(self, provider_dict):
+   def __init__(self):
       self.pdf = FPDF(orientation="P", unit="in", format="Letter")
       self.left_edge = 0.7
       self.pdf.set_margin(self.left_edge)
+
+   def new_page(self, provider_dict):
       self.pdf.add_page()
       self.top = self.pdf.get_y()
 
@@ -35,7 +37,6 @@ class InvoicePDFGenerator:
       city_state_zip = f'{provider_dict["city"]}, {provider_dict["state"]} {provider_dict["postalCode"]}'
       self.pdf.text(self.left_edge, self.text_top + (self.text_14_height * 2), city_state_zip)
 
-
    def add_customer_info(self, email=None, account=None, date=None, invoice_number=None, \
          name=None, address1=None, city_st_zip=None):
       self.pdf.set_y(1.0)
@@ -45,7 +46,6 @@ class InvoicePDFGenerator:
          self.pdf.set_font('Times')
          customer_info = [email, account, date, invoice_number]
          row = table.row(customer_info)
-
       self.pdf.set_y(2.0)
       with self.pdf.table(width=3, align="Left", line_height=0.16, padding=0.06) as table:
          self.pdf.set_font('Helvetica', size=11)
@@ -71,20 +71,24 @@ if __name__ == "__main__":
    except Exception as e:
       sys.exit(f"Could not open provider.json file: {e}")
 
-   this_invoice = InvoicePDFGenerator(provider_dict)
-
    try:
-      customer_dict = csv.DictReader(open('2025-09-02-customer_list.csv'))
+      customer_dict = csv.DictReader(open('2025-09-03-customer_list.csv'))
    except Exception as e:
       sys.exit(f"Could not open customer_list.csv: {e}")
 
+   invoices = InvoicePDFGenerator()
+
+   page_count = 0
    for row in customer_dict:
+      invoices.new_page(provider_dict)
       # print(row)
-      this_invoice.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
+      invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
          invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"])
-      break
+      page_count += 1
+      if page_count > 2:
+         break
    
-   this_invoice.finish("invoice_blank.pdf")
+   invoices.finish("invoice_blank.pdf")
    sys.exit(0)
 
    argParser = argparse.ArgumentParser()
