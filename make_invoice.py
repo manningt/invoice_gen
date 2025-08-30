@@ -75,7 +75,7 @@ class InvoicePDFGenerator:
             row.cell(item[2], align="R")
             row.cell(item[3], align="R")
          row = table.row()
-         self.pdf.set_font('Times', style='B', size=14)
+         self.pdf.set_font('Helvetica', style='B', size=14)
          row.cell('')
          row.cell('Total:', align="R")
          row.cell('')
@@ -86,9 +86,17 @@ class InvoicePDFGenerator:
 
 
 if __name__ == "__main__":
-   # default_auth_path = "email_credentials.json"
-   current_date = datetime.now()
-   billing_date = current_date.strftime("%m/%d/%Y")
+
+   argParser = argparse.ArgumentParser()
+   argParser.add_argument("input", type=str, help="input CSV filename with path")
+   argParser.add_argument("dates", nargs='*', type=str, help="service dates (MM-DD-YYYY)")
+   # argParser.add_argument("-c", "--auth_path", help="path to credentails file", nargs='?',
+   #             const=default_auth_path, default=default_auth_path, type=str)
+   # # store_false will default to True when the command-line argument is not present
+   # argParser.add_argument("-p", "--parse_only", action='store_true', help="if false, dont output PDFs or email - parse only")
+   # argParser.add_argument("-d", "--dont_email", action='store_true', help="if true, dont send emails")
+   args = argParser.parse_args()
+   # print(f'\n\t{args.input=} {args.dates=}')
 
    try:
       provider_dict = json.load(open("provider.json"))
@@ -101,18 +109,41 @@ if __name__ == "__main__":
       sys.exit(f"Could not open customer_list.csv: {e}")
 
    invoices = InvoicePDFGenerator()
+   billing_date = datetime.now().strftime("%m/%d/%Y")
 
    page_count = 0
    for row in customer_dict:
       invoices.new_page(provider_dict)
       # print(row)
+      print(f'Generating invoice for {row["Bill to 1"]}')
       invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
          invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
          terms=row["Terms"])
-      items = [["1", "Service description goes here", "100.00", "100.00"],
-                    ["2", "Another service description", "50.00", "100.00"],
-                    ["5", "A third service description", "20.00", "100.00"]]
-      invoices.add_line_items(line_items=items, total="300.00")
+      items = []
+      total_amount = 0
+      for date in args.dates:
+         services = [key for key in row if key.startswith(date)]
+         # print(f'{date=} {services=}')
+         for service in services:
+            if 'Plow' in service and row[service] != '':
+               service_parts = service.split('_')
+               description = f'Snow Plowing on {date} @ {service_parts[2]}"'
+               if len(service_parts) > 3:
+                  # handle case where there is a note after the snow depth
+                  description += service_parts[3]
+               items.append(["1", description, row["PlowRate"], row["PlowRate"]])
+               total_amount += float(row["PlowRate"])
+            if 'Sand' in service and row[service] != '':
+               if row["SandRate"] != '':
+                  items.append(["1", f'Sanding on {date}', row["SandRate"], row["SandRate"]])
+                  total_amount += float(row["SandRate"])
+               else:
+                  items.append(["1", f'Sanding on {date}', row[service], row[service]])
+                  total_amount += float(row[service])
+      # items = [["1", "Service description goes here", "100.00", "100.00"],
+      #               ["2", "Another service description", "50.00", "100.00"],
+      #               ["5", "A third service description", "20.00", "100.00"]]
+      invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
       page_count += 1
       if page_count > 2:
          break
@@ -120,15 +151,6 @@ if __name__ == "__main__":
    invoices.finish("invoice_blank.pdf")
    sys.exit(0)
 
-   argParser = argparse.ArgumentParser()
-   argParser.add_argument("input", type=str, help="input CSV filename with path")
-   # argParser.add_argument("-c", "--auth_path", help="path to credentails file", nargs='?',
-   #             const=default_auth_path, default=default_auth_path, type=str)
-   # # store_false will default to True when the command-line argument is not present
-   # argParser.add_argument("-p", "--parse_only", action='store_true', help="if false, dont output PDFs or email - parse only")
-   # argParser.add_argument("-d", "--dont_email", action='store_true', help="if true, dont send emails")
-   args = argParser.parse_args()
-   print(f'\n\t{args.input= }')
 
    # if args.input is None:
    #    pdf_filename = pick_file()
