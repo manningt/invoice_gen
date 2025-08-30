@@ -38,7 +38,7 @@ class InvoicePDFGenerator:
       self.pdf.text(self.left_edge, self.text_top + (self.text_14_height * 2), city_state_zip)
 
    def add_customer_info(self, email=None, account=None, date=None, invoice_number=None, \
-         name=None, address1=None, city_st_zip=None):
+         name=None, address1=None, city_st_zip=None, terms=None):
       self.pdf.set_y(1.0)
       with self.pdf.table(col_widths=(35,9,11,8), width=5, align="Right", line_height=self.text_14_height, padding=0.04) as table:
          self.pdf.set_font('Helvetica', size=11)
@@ -46,16 +46,40 @@ class InvoicePDFGenerator:
          self.pdf.set_font('Times')
          customer_info = [email, account, date, invoice_number]
          row = table.row(customer_info)
-      self.pdf.set_y(2.0)
+      self.pdf.set_y(1.8)
       with self.pdf.table(width=3, align="Left", line_height=0.16, padding=0.06) as table:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Bill To:'])
          self.pdf.set_font('Times')
          customer_info = f"{name}\n{address1}\n{city_st_zip}"
-         # row = table.row(customer_info) # this gives an error
-         row = table.row()
-         row.cell(customer_info)         
+         row = table.row([customer_info])
+      self.pdf.set_y(2.0)
+      with self.pdf.table(width=2, align="Right", line_height=self.text_14_height, padding=0.04, text_align="C") as table:
+         self.pdf.set_font('Helvetica', size=11)
+         row = table.row(['Terms'])
+         self.pdf.set_font('Times')
+         row = table.row([terms])
 
+   def add_line_items(self, line_items, total=0):
+      self.pdf.set_y(4.0)
+      with self.pdf.table(col_widths=(10,50,10,10), width=6, align="Center", line_height=self.text_14_height, \
+            padding=0.04, text_align="C") as table:
+         self.pdf.set_font('Helvetica', size=11)
+         row = table.row(['Quantity', 'Description', 'Rate', 'Amount'])
+         self.pdf.set_font('Times')
+         for item in line_items:
+            # row = table.row(item)
+            row = table.row()
+            row.cell(item[0], align="R")
+            row.cell(item[1], align="L")
+            row.cell(item[2], align="R")
+            row.cell(item[3], align="R")
+         row = table.row()
+         self.pdf.set_font('Times', style='B', size=14)
+         row.cell('')
+         row.cell('Total:', align="R")
+         row.cell('')
+         row.cell(total, align="R")
 
    def finish(self, out_pdf_path):
       self.pdf.output(out_pdf_path)
@@ -83,7 +107,12 @@ if __name__ == "__main__":
       invoices.new_page(provider_dict)
       # print(row)
       invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
-         invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"])
+         invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
+         terms=row["Terms"])
+      items = [["1", "Service description goes here", "100.00", "100.00"],
+                    ["2", "Another service description", "50.00", "100.00"],
+                    ["5", "A third service description", "20.00", "100.00"]]
+      invoices.add_line_items(line_items=items, total="300.00")
       page_count += 1
       if page_count > 2:
          break
