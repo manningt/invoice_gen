@@ -109,46 +109,67 @@ if __name__ == "__main__":
       sys.exit(f"Could not open customer_list.csv: {e}")
 
    invoices = InvoicePDFGenerator()
-   billing_date = datetime.now().strftime("%m/%d/%Y")
+   current_date = datetime.now()
+   billing_date = current_date.strftime("%m/%d/%Y")
 
-   page_count = 0
+   row_count = 0
    for row in customer_dict:
-      invoices.new_page(provider_dict)
       # print(row)
-      print(f'Generating invoice for {row["Bill to 1"]}')
-      invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
-         invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
-         terms=row["Terms"])
       items = []
       total_amount = 0
       for date in args.dates:
          services = [key for key in row if key.startswith(date)]
          # print(f'{date=} {services=}')
          for service in services:
-            if 'Plow' in service and row[service] != '':
+            if row[service] == '':
+               continue # skip empty cells
+            # print(f'  {service}: {row[service]} type={type(row[service])}')
+            try:
+               rate = float(row[service])
+            except:
+               rate = None
+ 
+            if 'Plow' in service:
+               if rate is None:
+                  try:
+                     rate = float(row["PlowRate"])
+                  except:
+                     print(f'No valid plow rate for {row["Bill to 1"]} on {date}, skipping plowing line item')
+                     continue
                service_parts = service.split('_')
-               description = f'Snow Plowing on {date} @ {service_parts[2]}"'
+               description = f'Snow Plowing on {date} @ {service_parts[2]}" '
                if len(service_parts) > 3:
                   # handle case where there is a note after the snow depth
                   description += service_parts[3]
-               items.append(["1", description, row["PlowRate"], row["PlowRate"]])
-               total_amount += float(row["PlowRate"])
-            if 'Sand' in service and row[service] != '':
-               if row["SandRate"] != '':
-                  items.append(["1", f'Sanding on {date}', row["SandRate"], row["SandRate"]])
-                  total_amount += float(row["SandRate"])
-               else:
-                  items.append(["1", f'Sanding on {date}', row[service], row[service]])
-                  total_amount += float(row[service])
-      # items = [["1", "Service description goes here", "100.00", "100.00"],
-      #               ["2", "Another service description", "50.00", "100.00"],
-      #               ["5", "A third service description", "20.00", "100.00"]]
-      invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
-      page_count += 1
-      if page_count > 2:
+               
+            if 'Sand' in service:
+               if rate is None:
+                  try:
+                     rate = float(row["SandRate"])
+                  except:
+                     print(f'No valid sand rate for {row["Bill to 1"]} on {date}, skipping plowing line item')
+                     continue
+               description = f'Sanding on {date}'
+
+            rate_str = f"{rate:.2f}"
+            items.append(["1", description, rate_str, rate_str])
+            total_amount += rate
+      
+      if len(items) == 0:
+         print(f'No services found for {row["Bill to 1"]}, skipping invoice generation')
+      else:
+         invoices.new_page(provider_dict)
+         print(f'Generating invoice for {row["Bill to 1"]}')
+         invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
+            invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
+            terms=row["Terms"])
+         invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
+      row_count += 1
+      if row_count > 2:
          break
-   
-   invoices.finish("invoice_blank.pdf")
+
+   pdf_filename = f'{current_date.strftime("%Y-%m-%d")}_invoices.pdf'
+   invoices.finish(pdf_filename)
    sys.exit(0)
 
 
