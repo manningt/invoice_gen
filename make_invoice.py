@@ -11,6 +11,7 @@ import csv
 import json
 import argparse
 from datetime import datetime
+import math
 # import tkinter as tk
 # from tkinter import filedialog
 import sys
@@ -126,6 +127,8 @@ if __name__ == "__main__":
             # print(f'  {service}: {row[service]} type={type(row[service])}')
             try:
                rate = float(row[service])
+               if rate < 10:  # skip rates that are too low to be valid
+                  rate = None
             except:
                rate = None
  
@@ -139,15 +142,37 @@ if __name__ == "__main__":
                service_parts = service.split('_')
                description = f'Snow Plowing on {date} @ {service_parts[2]}" '
                if len(service_parts) > 3:
-                  # handle case where there is a note after the snow depth
+                  # handle case where there is a note after the snow depth, e.g "Plow_12-25-122x_4_slush"
                   description += service_parts[3]
-               
+               try:
+                  depth = float(service_parts[2])
+               except:
+                  depth = 6.0
+                  print(f'Could not parse snow depth from "{service}", using default of {depth}"')
+
+               rate_before_depth_adjust = rate
+               if depth <= 6:
+                  pass
+               elif depth <= 9:  
+                  rate = math.trunc(rate * 1.5)
+               elif depth <= 12:
+                  rate = math.trunc(rate * 2.25)
+               elif depth <= 18:
+                  rate = math.trunc(rate * 3.0)
+               elif depth <= 24:
+                  rate = math.trunc(rate * 3.75)
+               elif depth <= 32:
+                  rate = math.trunc(rate * 4.5)
+               else:
+                  print(f'Unusual snow depth of {depth}" for {row["Bill to 1"]} on {date}, using base rate')
+               # print(f'Plowing depth of {depth}" for {row["Bill to 1"]} on {date}, base rate ${rate_before_depth_adjust:.2f} rate ${rate:.2f}')
+
             if 'Sand' in service:
                if rate is None:
                   try:
                      rate = float(row["SandRate"])
                   except:
-                     print(f'No valid sand rate for {row["Bill to 1"]} on {date}, skipping plowing line item')
+                     print(f'No valid sand rate for {row["Bill to 1"]} on {date}, skipping sanding line item')
                      continue
                description = f'Sanding on {date}'
 
@@ -165,7 +190,7 @@ if __name__ == "__main__":
             terms=row["Terms"])
          invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
       row_count += 1
-      if row_count > 2:
+      if row_count > 3:
          break
 
    pdf_filename = f'{current_date.strftime("%Y-%m-%d")}_invoices.pdf'
