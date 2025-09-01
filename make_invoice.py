@@ -16,6 +16,22 @@ import math
 # from tkinter import filedialog
 import sys
 
+def depth_rate_adjustment(depth, base_rate):
+   if depth <= 6:
+      return base_rate
+   elif depth <= 9:  
+      return math.trunc(base_rate * 1.5)
+   elif depth <= 12:
+      return math.trunc(base_rate * 2.25)
+   elif depth <= 18:
+      return math.trunc(base_rate * 3.0)
+   elif depth <= 24:
+      return math.trunc(base_rate * 3.75)
+   elif depth <= 32:
+      return math.trunc(base_rate * 4.5)
+   else:
+      return None
+
 class InvoicePDFGenerator:
    def __init__(self):
       self.pdf = FPDF(orientation="P", unit="in", format="Letter")
@@ -63,7 +79,7 @@ class InvoicePDFGenerator:
 
    def add_line_items(self, line_items, total=0):
       self.pdf.set_y(4.0)
-      with self.pdf.table(col_widths=(10,50,10,10), width=6, align="Center", line_height=self.text_14_height, \
+      with self.pdf.table(col_widths=(10,52,8,10), width=6, align="Center", line_height=self.text_14_height, \
             padding=0.04, text_align="C") as table:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Quantity', 'Description', 'Rate', 'Amount'])
@@ -105,7 +121,7 @@ if __name__ == "__main__":
       sys.exit(f"Could not open provider.json file: {e}")
 
    try:
-      customer_dict = csv.DictReader(open('2025-09-03-customer_list.csv'))
+      customer_dict = csv.DictReader(open('2025-09-01-customer_list.csv'))
    except Exception as e:
       sys.exit(f"Could not open customer_list.csv: {e}")
 
@@ -125,6 +141,8 @@ if __name__ == "__main__":
             if row[service] == '':
                continue # skip empty cells
             # print(f'  {service}: {row[service]} type={type(row[service])}')
+
+            # use the rate from the service column if it is a valid number (applies to sanding and plowing columns)
             try:
                rate = float(row[service])
                if rate < 10:  # skip rates that are too low to be valid
@@ -139,33 +157,40 @@ if __name__ == "__main__":
                   except:
                      print(f'No valid plow rate for {row["Bill to 1"]} on {date}, skipping plowing line item')
                      continue
+               
                service_parts = service.split('_')
-               description = f'Snow Plowing on {date} @ {service_parts[2]}" '
+               try:
+                  depth = int(service_parts[2])
+               except:
+                  print(f'Could not parse snow depth from "{service}" -> quitting')
+                  sys.exit(1)
+
+               description = f'Snow Plowing on {date} @ {depth}" '
                if len(service_parts) > 3:
                   # handle case where there is a note after the snow depth, e.g "Plow_12-25-122x_4_slush"
                   description += service_parts[3]
+
                try:
-                  depth = float(service_parts[2])
-               except:
-                  depth = 6.0
-                  print(f'Could not parse snow depth from "{service}", using default of {depth}"')
+                  common_driveway_rate = float(row["CommonRate"])
+                  # print(f'Using shared_driveway_rate of {common_driveway_rate} for {row["Bill to 1"]} on {date}')
+                  common_rate_before_depth_adjust = common_driveway_rate
+                  common_driveway_rate = depth_rate_adjustment(depth, common_driveway_rate)
+                  if common_driveway_rate is None:
+                     print(f'Unusual snow depth of {depth}" for {row["Bill to 1"]} on {date}, using common rate')
+                     common_driveway_rate = common_rate_before_depth_adjust
+                  # print(f'Adding common driveway line item for {row["Bill to 1"]} on {date} at rate {common_driveway_rate}')
+                  items.append(["1", description + "   Common Drive", f'{common_driveway_rate:.2f}', f'{common_driveway_rate:.2f}'])
+                  total_amount += rate
+                  description += "   Private Drive"
+               except Exception as e:
+                  pass
+                  # print(f'Exception {e} for {row["Bill to 1"]} on {date} while getting common_driveway_rate')
 
                rate_before_depth_adjust = rate
-               if depth <= 6:
-                  pass
-               elif depth <= 9:  
-                  rate = math.trunc(rate * 1.5)
-               elif depth <= 12:
-                  rate = math.trunc(rate * 2.25)
-               elif depth <= 18:
-                  rate = math.trunc(rate * 3.0)
-               elif depth <= 24:
-                  rate = math.trunc(rate * 3.75)
-               elif depth <= 32:
-                  rate = math.trunc(rate * 4.5)
-               else:
+               rate = depth_rate_adjustment(depth, rate)
+               if rate is None:
                   print(f'Unusual snow depth of {depth}" for {row["Bill to 1"]} on {date}, using base rate')
-               # print(f'Plowing depth of {depth}" for {row["Bill to 1"]} on {date}, base rate ${rate_before_depth_adjust:.2f} rate ${rate:.2f}')
+                  rate = rate_before_depth_adjust
 
             if 'Sand' in service:
                if rate is None:
