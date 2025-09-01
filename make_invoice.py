@@ -121,7 +121,7 @@ if __name__ == "__main__":
       sys.exit(f"Could not open provider.json file: {e}")
 
    try:
-      customer_dict = csv.DictReader(open('2025-09-01-customer_list.csv'))
+      customer_dict = csv.DictReader(open(args.input))
    except Exception as e:
       sys.exit(f"Could not open customer_list.csv: {e}")
 
