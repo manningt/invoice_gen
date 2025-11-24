@@ -37,6 +37,7 @@ class InvoicePDFGenerator:
       self.pdf = FPDF(orientation="P", unit="in", format="Letter")
       self.left_edge = 0.7
       self.pdf.set_margin(self.left_edge)
+      self.billing_date = datetime.now().strftime("%m/%d/%Y")
 
    def new_page(self, provider_dict):
       self.pdf.add_page()
@@ -54,14 +55,14 @@ class InvoicePDFGenerator:
       city_state_zip = f'{provider_dict["city"]}, {provider_dict["state"]} {provider_dict["postalCode"]}'
       self.pdf.text(self.left_edge, self.text_top + (self.text_14_height * 2), city_state_zip)
 
-   def add_customer_info(self, email=None, account=None, date=None, invoice_number=None, \
+   def add_customer_info(self, email=None, account=None, invoice_number=None, \
          name=None, address1=None, city_st_zip=None, terms=None):
       self.pdf.set_y(1.0)
       with self.pdf.table(col_widths=(35,9,11,8), width=5, align="Right", line_height=self.text_14_height, padding=0.04) as table:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Customer E-mail', 'Account', 'Date', 'Invoice'])
          self.pdf.set_font('Times')
-         customer_info = [email, account, date, invoice_number]
+         customer_info = [email, account, self.billing_date, invoice_number]
          row = table.row(customer_info)
       self.pdf.set_y(1.8)
       with self.pdf.table(width=3, align="Left", line_height=0.16, padding=0.06) as table:
@@ -127,7 +128,6 @@ if __name__ == "__main__":
 
    invoices = InvoicePDFGenerator()
    current_date = datetime.now()
-   billing_date = current_date.strftime("%m/%d/%Y")
 
    row_count = 0
    for row in customer_dict:
@@ -210,8 +210,8 @@ if __name__ == "__main__":
       else:
          invoices.new_page(provider_dict)
          print(f'Generating invoice for {row["Bill to 1"]}')
-         invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], date=billing_date, \
-            invoice_number="TBD", name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
+         invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], invoice_number="TBD", \
+            name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
             terms=row["Terms"])
          invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
       row_count += 1
