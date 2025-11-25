@@ -199,6 +199,19 @@ def add_line_items_to_dict(customer_dict, dates_list):
          row["Total Amount"] = f'{total_amount:.2f}'
          # print(row)
 
+def generate_report(customer_dict, filename):
+   with open(filename, "w") as f:
+      for row in customer_dict:
+         f.write(f'{row["Bill to 1"]:30} ')
+         if "Total Amount" not in row:
+            f.write(f'No Invoice\n')
+         else:
+            f.write(f'Total=${row["Total Amount"]}')
+            if 'Main Email' in row and row['Main Email'] == '':
+               f.write(f' (No Email)')
+            f.write('\n')
+               
+   
 
 if __name__ == "__main__":
 
@@ -218,7 +231,7 @@ if __name__ == "__main__":
    except Exception as e:
       sys.exit(f"Could not open customer_list.csv: {e}")
 
-   iterator1, iterator2, iterator3 = itertools.tee(customer_dict, 3)
+   iterator1, iterator2, iterator3, iterator4 = itertools.tee(customer_dict, 4)
 
    add_line_items_to_dict(iterator1, args.dates)
    # for row in iterator2:
@@ -232,7 +245,7 @@ if __name__ == "__main__":
          # print(f'No Line Items found for {row["Bill to 1"]}, skipping invoice generation')
          continue
       else:
-         print(f'Generating invoice for {row["Bill to 1"]}')
+         # print(f'Generating invoice for {row["Bill to 1"]}')
          invoices.new_page(provider_dict)
          invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], invoice_number="TBD", \
             name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
@@ -243,3 +256,6 @@ if __name__ == "__main__":
    current_date = datetime.now()
    pdf_filename = f'{current_date.strftime("%Y-%m-%d")}_invoices.pdf'
    invoices.finish(pdf_filename)
+
+   report_filename = f'{current_date.strftime("%Y-%m-%d")}_report.txt'
+   generate_report(iterator4, report_filename)
