@@ -80,7 +80,7 @@ class InvoicePDFGenerator:
          row = table.row([terms])
 
    def add_line_items(self, line_items, total=0):
-      print(f'Adding line items: {line_items}')
+      # print(f'Adding line items: {line_items}')
       self.pdf.set_y(4.0)
       with self.pdf.table(col_widths=(10,52,8,10), width=6, align="Center", line_height=self.text_14_height, \
             padding=0.04, text_align="C") as table:
@@ -103,8 +103,17 @@ class InvoicePDFGenerator:
    def finish(self, out_pdf_path):
       self.pdf.output(out_pdf_path)
 
-
 def add_line_items_to_dict(customer_dict, dates_list):
+   # the customer_dict is an iterator of csv.DictReader object
+   # There can be multiple columns for each date;  each column is a service to be added to the invoice.
+   # The column names are:
+   #  of the form "MM-DD-YYYY_Plow_N" where N is the number of inches of snow, or "MM-DD-YYYY_Sand"
+   #  parsed to extract Plow or Sand, and the number of inches of snow
+   # The value of the service can be: (the value is the cell for that customer and column):
+   #    a number, in which case it is the rate for the service;  the number has to be > 9
+   #    a 'P', in which case the customer has paid and an invoice will not be generated for that service
+   #    a '-', or empty string, in which case the customer was not plowed
+   #    a string,.e.g. x, in which case the rate will be retrieved from the Plow Rate or Sand Rate column for that customer (row)
    row_count = 0
    for row in customer_dict:
       # print(row)
@@ -122,6 +131,7 @@ def add_line_items_to_dict(customer_dict, dates_list):
             try:
                rate = float(row[service])
                if rate < 10:  # skip rates that are too low to be valid
+                  print(f'Invalid rate {rate} for {row["Bill to 1"]} on {date}, using rate from PlowRate column')
                   rate = None
             except:
                rate = None
@@ -131,14 +141,14 @@ def add_line_items_to_dict(customer_dict, dates_list):
                   try:
                      rate = float(row["PlowRate"])
                   except:
-                     print(f'No valid plow rate for {row["Bill to 1"]} on {date}, skipping plowing line item')
+                     print(f'Could not parse rate {row["PlowRate"]} in {service} for {row["Bill to 1"]} -> skipping')
                      continue
                
                service_parts = service.split('_')
                try:
                   depth = int(service_parts[2])
                except:
-                  print(f'Could not parse snow depth from "{service}" -> quitting')
+                  print(f'Could not parse snow depth from "{service}" for {row["Bill to 1"]} -> quitting')
                   sys.exit(1)
 
                description = f'Snow Plowing on {date} @ {depth}" '
@@ -146,6 +156,7 @@ def add_line_items_to_dict(customer_dict, dates_list):
                   # handle case where there is a note after the snow depth, e.g "Plow_12-25-122x_4_slush"
                   description += service_parts[3]
 
+               # handle case where the customer has a common driveway, if so, then add a line item for the common driveway
                try:
                   common_driveway_rate = float(row["CommonRate"])
                   # print(f'Using shared_driveway_rate of {common_driveway_rate} for {row["Bill to 1"]} on {date}')
@@ -156,11 +167,10 @@ def add_line_items_to_dict(customer_dict, dates_list):
                      common_driveway_rate = common_rate_before_depth_adjust
                   # print(f'Adding common driveway line item for {row["Bill to 1"]} on {date} at rate {common_driveway_rate}')
                   items.append(["1", description + "   Common Drive", f'{common_driveway_rate:.2f}', f'{common_driveway_rate:.2f}'])
-                  total_amount += rate
+                  total_amount += common_driveway_rate
                   description += "   Private Drive"
                except Exception as e:
-                  pass
-                  # print(f'Exception {e} for {row["Bill to 1"]} on {date} while getting common_driveway_rate')
+                  print(f'Exception {e} for {row["Bill to 1"]} on {date} while getting common_driveway_rate')
 
                rate_before_depth_adjust = rate
                rate = depth_rate_adjustment(depth, rate)
@@ -188,27 +198,13 @@ def add_line_items_to_dict(customer_dict, dates_list):
          row["Line Items"] = items
          row["Total Amount"] = f'{total_amount:.2f}'
          # print(row)
-         # invoices.new_page(provider_dict)
-         # print(f'Generating invoice for {row["Bill to 1"]}')
-         # invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], invoice_number="TBD", \
-         #    name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
-         #    terms=row["Terms"])
-         # invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
-      # row_count += 1
-      # if row_count > 1:
-      #    break
 
 
 if __name__ == "__main__":
 
    argParser = argparse.ArgumentParser()
-   argParser.add_argument("input", type=str, help="input CSV filename with path")
+   argParser.add_argument("inputCSV", type=str, help="input CSV filename with path")
    argParser.add_argument("dates", nargs='*', type=str, help="service dates (MM-DD-YYYY)")
-   # argParser.add_argument("-c", "--auth_path", help="path to credentails file", nargs='?',
-   #             const=default_auth_path, default=default_auth_path, type=str)
-   # # store_false will default to True when the command-line argument is not present
-   # argParser.add_argument("-p", "--parse_only", action='store_true', help="if false, dont output PDFs or email - parse only")
-   # argParser.add_argument("-d", "--dont_email", action='store_true', help="if true, dont send emails")
    args = argParser.parse_args()
    # print(f'\n\t{args.input=} {args.dates=}')
 
@@ -218,44 +214,32 @@ if __name__ == "__main__":
       sys.exit(f"Could not open provider.json file: {e}")
 
    try:
-      customer_dict = csv.DictReader(open(args.input))
+      customer_dict = csv.DictReader(open(args.inputCSV))
    except Exception as e:
       sys.exit(f"Could not open customer_list.csv: {e}")
 
    iterator1, iterator2, iterator3 = itertools.tee(customer_dict, 3)
 
    add_line_items_to_dict(iterator1, args.dates)
-   for row in iterator2:
-      print(row)
-      break
-   # sys.exit(0)
+   # for row in iterator2:
+   #    print(row)
+   #    break
 
    invoices = InvoicePDFGenerator()
    row_count = 0
    for row in iterator3:
-      # if row_count > 1:
-      #    break 
-      # print(row)
       if "Line Items" not in row or len(row["Line Items"]) == 0:
          # print(f'No Line Items found for {row["Bill to 1"]}, skipping invoice generation')
-         continue # skip customers with no services
-      invoices.new_page(provider_dict)
-      print(f'Generating invoice for {row["Bill to 1"]}')
-      invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], invoice_number="TBD", \
-         name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
-         terms=row["Terms"])
-      # invoices.add_line_items(line_items=items, total=f"{total_amount:.2f}")
-      invoices.add_line_items(line_items=row["Line Items"], total=row["Total Amount"])
-      row_count += 1
+         continue
+      else:
+         print(f'Generating invoice for {row["Bill to 1"]}')
+         invoices.new_page(provider_dict)
+         invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], invoice_number="TBD", \
+            name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
+            terms=row["Terms"])
+         invoices.add_line_items(line_items=row["Line Items"], total=row["Total Amount"])
+         row_count += 1
  
    current_date = datetime.now()
    pdf_filename = f'{current_date.strftime("%Y-%m-%d")}_invoices.pdf'
    invoices.finish(pdf_filename)
-
-   # if args.input is None:
-   #    pdf_filename = pick_file()
-   #    if pdf_filename is None:
-   #       sys.exit("No PDF files selected to parse.")
-   #    pdf_filename = f'../{pdf_filename}'
-   # else:
-   #    pdf_filename = args.input
