@@ -121,17 +121,22 @@ def add_line_items_to_dict(customer_dict, dates_list):
       total_amount = 0
       for date in dates_list:
          services = [key for key in row if key.startswith(date)]
-         # print(f'{date=} {services=}')
+         # if row_count < 3:
+         #    print(f'{row["Bill to 1"]} {date=} {services=}')
          for service in services:
-            if row[service] == '':
+            if row[service] == '' or row[service] == '-':
                continue # skip empty cells
-            # print(f'  {service}: {row[service]} type={type(row[service])}')
+            if row[service].lower() == 'p':
+               row["Paid"] = True
+               continue # skip paid cells
+            # if row_count < 3:
+            #    print(f'  {row["Bill to 1"]}{service}: {row[service]} type={type(row[service])}')
 
             # use the rate from the service column if it is a valid number (applies to sanding and plowing columns)
             try:
                rate = float(row[service])
                if rate < 10:  # skip rates that are too low to be valid
-                  print(f'Invalid rate {rate} for {row["Bill to 1"]} on {date}, using rate from PlowRate column')
+                  print(f'Invalid rate {rate} for {row["Bill to 1"]} on {date}, using rate from Plow/Sand Rate column')
                   rate = None
             except:
                rate = None
@@ -157,20 +162,22 @@ def add_line_items_to_dict(customer_dict, dates_list):
                   description += service_parts[3]
 
                # handle case where the customer has a common driveway, if so, then add a line item for the common driveway
-               try:
-                  common_driveway_rate = float(row["CommonRate"])
-                  # print(f'Using shared_driveway_rate of {common_driveway_rate} for {row["Bill to 1"]} on {date}')
-                  common_rate_before_depth_adjust = common_driveway_rate
-                  common_driveway_rate = depth_rate_adjustment(depth, common_driveway_rate)
-                  if common_driveway_rate is None:
-                     print(f'Unusual snow depth of {depth}" for {row["Bill to 1"]} on {date}, using common rate')
-                     common_driveway_rate = common_rate_before_depth_adjust
-                  # print(f'Adding common driveway line item for {row["Bill to 1"]} on {date} at rate {common_driveway_rate}')
-                  items.append(["1", description + "   Common Drive", f'{common_driveway_rate:.2f}', f'{common_driveway_rate:.2f}'])
-                  total_amount += common_driveway_rate
-                  description += "   Private Drive"
-               except Exception as e:
-                  print(f'Exception {e} for {row["Bill to 1"]} on {date} while getting common_driveway_rate')
+               if row["CommonRate"] != '':
+                  try:
+                     common_driveway_rate = float(row["CommonRate"])
+                     # print(f'Using shared_driveway_rate of {common_driveway_rate} for {row["Bill to 1"]} on {date}')
+                     common_rate_before_depth_adjust = common_driveway_rate
+                     common_driveway_rate = depth_rate_adjustment(depth, common_driveway_rate)
+                     if common_driveway_rate is None:
+                        print(f'Unusual snow depth of {depth}" for {row["Bill to 1"]} on {date}, using common rate')
+                        common_driveway_rate = common_rate_before_depth_adjust
+                     # print(f'Adding common driveway line item for {row["Bill to 1"]} on {date} at rate {common_driveway_rate}')
+                     items.append(["1", description + "   Common Drive", f'{common_driveway_rate:.2f}', f'{common_driveway_rate:.2f}'])
+                     total_amount += common_driveway_rate
+                     description += "   Private Drive"
+                  except Exception as e:
+                     print(f'Exception {e} for {row["Bill to 1"]} on {date} while getting common_driveway_rate')
+                     sys.exit(1)
 
                rate_before_depth_adjust = rate
                rate = depth_rate_adjustment(depth, rate)
@@ -198,13 +205,22 @@ def add_line_items_to_dict(customer_dict, dates_list):
          row["Line Items"] = items
          row["Total Amount"] = f'{total_amount:.2f}'
          # print(row)
+      row_count += 1
+      # if row_count < 3:
+      #    print(row)
+      # if row_count == 2:
+      #    return
+         
 
-def generate_report(customer_dict, filename):
+def generate_text_report(customer_dict, filename):
    with open(filename, "w") as f:
       for row in customer_dict:
          f.write(f'{row["Bill to 1"]:30} ')
          if "Total Amount" not in row:
-            f.write(f'No Invoice\n')
+            comment = 'No Invoice'
+            if 'Paid' in row and row['Paid']:
+               comment += ': Paid'
+            f.write(f'{comment:18}\n')
          else:
             f.write(f'Total=${row["Total Amount"]}')
             if 'Main Email' in row and row['Main Email'] == '':
@@ -258,4 +274,4 @@ if __name__ == "__main__":
    invoices.finish(pdf_filename)
 
    report_filename = f'{current_date.strftime("%Y-%m-%d")}_report.txt'
-   generate_report(iterator4, report_filename)
+   generate_text_report(iterator4, report_filename)
