@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#   "fpdf2>=2.7.0",
+#   "fpdf2",
 # ]
 # ///
 
@@ -13,9 +13,13 @@ import argparse
 from datetime import datetime
 import math
 import itertools
-# import tkinter as tk
-# from tkinter import filedialog
 import sys
+
+try:
+   from fpdf import FPDF
+except Exception as e:
+   print(e)
+   sys.exit(1)
 
 def depth_rate_adjustment(depth, base_rate):
    if depth <= 6:
@@ -227,7 +231,44 @@ def generate_text_report(customer_dict, filename):
                f.write(f' (No Email)')
             f.write('\n')
                
-   
+def generate_pdf_report(customer_dict, filename):
+
+   pdf = FPDF(orientation="P", unit="pt", format=(612,792))
+   pdf.add_page()
+   pdf.set_margins(12, 12, 12) #left, top, right in points
+   pdf.set_auto_page_break(auto=False)
+   widths = (36, 32, 160, 36)
+
+   page_number = 1
+   # page_number += 1
+   pdf.set_font("Helvetica", "B")
+   pdf.cell(0,0, f'Page {page_number} of 4', align="L")
+   pdf.ln(pdf.font_size+4)
+
+   with pdf.table(align="l", line_height=24, padding=2, width=sum(widths), col_widths=widths) as table:
+      pdf.set_font("Helvetica", "B") # Arial not available in fpdf2
+      row = table.row()
+      row.cell("Total")
+      row.cell("Paid")
+      row.cell("Name")
+      row.cell("email")
+      pdf.set_font("Helvetica")
+      for data_row in customer_dict:
+         row = table.row()
+         if "Total Amount" not in data_row:
+            row.cell("--")
+         else:
+            row.cell("$" + data_row["Total Amount"][:-3])
+         if "Paid" in data_row:
+            row.cell("Y")
+         else:
+            row.cell("N")
+         row.cell(data_row["Bill to 1"])
+         if "Main Email" in data_row and data_row["Main Email"] != '':
+            row.cell("Y")
+         else:
+            row.cell("N")
+   pdf.output(filename)
 
 if __name__ == "__main__":
 
@@ -273,5 +314,6 @@ if __name__ == "__main__":
    pdf_filename = f'{current_date.strftime("%Y-%m-%d")}_invoices.pdf'
    invoices.finish(pdf_filename)
 
-   report_filename = f'{current_date.strftime("%Y-%m-%d")}_report.txt'
-   generate_text_report(iterator4, report_filename)
+   report_basename = f'{current_date.strftime("%Y-%m-%d")}_report'
+   # generate_text_report(iterator4, report_basename + ".txt")
+   generate_pdf_report(iterator4, report_basename + ".pdf")
