@@ -63,20 +63,20 @@ class InvoicePDFGenerator:
    def add_customer_info(self, email=None, account=None, invoice_number=None, \
          name=None, address1=None, city_st_zip=None, terms=None):
       self.pdf.set_y(1.0)
-      with self.pdf.table(col_widths=(35,9,11,8), width=5, align="Right", line_height=self.text_14_height, padding=0.04) as table:
+      with self.pdf.table(col_widths=(35,6,11,12), width=5, align="Right", line_height=self.text_14_height, padding=0.04) as table:
          self.pdf.set_font('Helvetica', size=11)
-         row = table.row(['Customer E-mail', 'Account', 'Date', 'Invoice'])
+         row = table.row(['Customer E-mail', 'Acct', 'Date', 'Invoice'])
          self.pdf.set_font('Times')
          customer_info = [email, account, self.billing_date, invoice_number]
          row = table.row(customer_info)
-      self.pdf.set_y(1.8)
+      self.pdf.set_y(2.0)
       with self.pdf.table(width=3, align="Left", line_height=0.16, padding=0.06) as table:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Bill To:'])
          self.pdf.set_font('Times')
          customer_info = f"{name}\n{address1}\n{city_st_zip}"
          row = table.row([customer_info])
-      self.pdf.set_y(2.0)
+      self.pdf.set_y(2.2)
       with self.pdf.table(width=2, align="Right", line_height=self.text_14_height, padding=0.04, text_align="C") as table:
          self.pdf.set_font('Helvetica', size=11)
          row = table.row(['Terms'])
@@ -85,7 +85,7 @@ class InvoicePDFGenerator:
 
    def add_line_items(self, line_items, total=0):
       # print(f'Adding line items: {line_items}')
-      self.pdf.set_y(4.0)
+      self.pdf.set_y(3.8)
       with self.pdf.table(col_widths=(10,52,8,10), width=6, align="Center", line_height=self.text_14_height, \
             padding=0.04, text_align="C") as table:
          self.pdf.set_font('Helvetica', size=11)
@@ -249,7 +249,7 @@ def generate_pdf_report(customer_dict, filename, rows_per_page=22, service_dates
       if "Main Email" in data_row and data_row["Main Email"] != '':
          email = "Y"
       else:
-         email = "N"         
+         email = ""         
       table_data.append([amount, paid, data_row["Bill to 1"], email])
 
    current_table_row_number = 0
@@ -309,6 +309,9 @@ if __name__ == "__main__":
    #    print(row)
    #    break
 
+   current_date = datetime.now()
+   date_str = f'{current_date.strftime("%y%m%d")}'
+
    invoices = InvoicePDFGenerator()
    row_count = 0
    for row in iterator3:
@@ -318,13 +321,13 @@ if __name__ == "__main__":
       else:
          # print(f'Generating invoice for {row["Bill to 1"]}')
          invoices.new_page(provider_dict)
-         invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], invoice_number="TBD", \
-            name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], \
+         invoices.add_customer_info(email=row["Main Email"], account=row["Account No."], 
+            invoice_number=f'{date_str}.{row["Account No."]}', 
+            name=row["Bill to 1"], address1=row["Bill to 2"], city_st_zip=row["Bill to 3"], 
             terms=row["Terms"])
          invoices.add_line_items(line_items=row["Line Items"], total=row["Total Amount"])
          row_count += 1
  
-   current_date = datetime.now()
    pdf_filename = f'{current_date.strftime("%Y-%m-%d")}_invoices.pdf'
    invoices.finish(pdf_filename)
 
