@@ -231,7 +231,7 @@ def generate_text_report(customer_dict, filename):
                f.write(f' (No Email)')
             f.write('\n')
                
-def generate_pdf_report(customer_dict, filename):
+def generate_pdf_report(customer_dict, filename, rows_per_page=22, service_dates=[]):
 
    # TODO: add service dates to page title; specify number of customers per page
    # build customer list to be used in tables
@@ -253,7 +253,6 @@ def generate_pdf_report(customer_dict, filename):
       table_data.append([amount, paid, data_row["Bill to 1"], email])
 
    current_table_row_number = 0
-   rows_per_page = 22
 
    pdf = FPDF(orientation="P", unit="pt", format=(612,792))
    pdf.set_margins(12, 12, 12) #left, top, right in points
@@ -263,7 +262,7 @@ def generate_pdf_report(customer_dict, filename):
    for page_number in range(4):
       pdf.add_page()
       pdf.set_font("Helvetica", "B")
-      pdf.cell(0,0, f'Page {page_number+1} of 4', align="L")
+      pdf.cell(0,0, f'Page {page_number+1} of 4     service dates: {', '.join(service_dates)}', align="L")
       pdf.ln(pdf.font_size+4)
 
       with pdf.table(align="l", line_height=24, padding=2, width=sum(widths), col_widths=widths) as table:
@@ -331,4 +330,4 @@ if __name__ == "__main__":
 
    report_basename = f'{current_date.strftime("%Y-%m-%d")}_report'
    # generate_text_report(iterator4, report_basename + ".txt")
-   generate_pdf_report(iterator4, report_basename + ".pdf")
+   generate_pdf_report(iterator4, report_basename + ".pdf", service_dates=args.dates)
